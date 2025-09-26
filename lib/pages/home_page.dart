@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import '../services/location_service.dart';
 import '../widgets/current_map.dart';
 import '../widgets/location_info_card.dart';
+import '../widgets/osm_search_bar.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,6 +16,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final LocationService _locationService = LocationService();
+  final _osmCtrl = TextEditingController();
 
   Position? _currentPosition;
   String currentAddress = "";
@@ -27,8 +29,7 @@ class _HomePageState extends State<HomePage> {
     getCurrentLocation();
   }
 
-  // ————— Giữ nguyên tên hàm —————
-
+  // ================= Giữ nguyên tên hàm =================
   void _onMapCreated(GoogleMapController controller) {
     mapController = controller;
     addMarker();
@@ -37,25 +38,46 @@ class _HomePageState extends State<HomePage> {
   void addMarker() {
     if (_currentPosition == null) return;
 
+    final marker = Marker(
+      markerId: const MarkerId('currentLocation'),
+      position: LatLng(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+      ),
+      infoWindow: InfoWindow(
+        title: 'Current Location',
+        snippet: currentAddress,
+      ),
+      // Tuỳ chọn: cho phép kéo để chọn vị trí thủ công
+      draggable: true,
+      onDragEnd: (pos) async {
+        setState(() {
+          _currentPosition = Position(
+            latitude: pos.latitude,
+            longitude: pos.longitude,
+            timestamp: DateTime.now(),
+            accuracy: 0,
+            altitude: 0,
+            heading: 0,
+            speed: 0,
+            speedAccuracy: 0,
+            altitudeAccuracy: 0,
+            headingAccuracy: 0,
+          );
+        });
+        await getAddressFromLatLng();
+        addMarker(); // cập nhật lại infoWindow
+      },
+    );
+
     setState(() {
-      markers.clear();
-      markers.add(
-        Marker(
-          markerId: const MarkerId('currentLocation'),
-          position: LatLng(
-            _currentPosition!.latitude,
-            _currentPosition!.longitude,
-          ),
-          infoWindow: InfoWindow(
-            title: 'Current Location',
-            snippet: currentAddress,
-          ),
-        ),
-      );
+      markers
+        ..clear()
+        ..add(marker);
     });
   }
 
-  void getCurrentLocation() async {
+  Future<void> getCurrentLocation() async {
     try {
       final permission = await _locationService.ensurePermission();
 
@@ -80,10 +102,11 @@ class _HomePageState extends State<HomePage> {
         _currentPosition = position;
       });
 
-      getAddressFromLatLng();
+      // cập nhật địa chỉ hiện tại
+      await getAddressFromLatLng();
 
       if (mapController != null) {
-        mapController!.animateCamera(
+        await mapController!.animateCamera(
           CameraUpdate.newCameraPosition(
             CameraPosition(
               target: LatLng(position.latitude, position.longitude),
@@ -91,16 +114,15 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         );
-        addMarker();
       }
+      addMarker();
     } catch (e) {
-      // Bạn có thể show SnackBar thay vì print
       // ignore: avoid_print
       print(e);
     }
   }
 
-  void getAddressFromLatLng() async {
+  Future<void> getAddressFromLatLng() async {
     try {
       if (_currentPosition == null) return;
 
@@ -117,34 +139,86 @@ class _HomePageState extends State<HomePage> {
       print(e);
     }
   }
+  // ======================================================
 
-  // ————— UI —————
+  // Khi người dùng chọn 1 gợi ý từ OSM Nominatim
+  Future<void> _onOsmPicked(double lat, double lon, String label) async {
+    final target = LatLng(lat, lon);
+
+    // Cập nhật _currentPosition để tái dùng getAddressFromLatLng + addMarker
+    setState(() {
+      _currentPosition = Position(
+        latitude: lat,
+        longitude: lon,
+        timestamp: DateTime.now(),
+        accuracy: 0,
+        altitude: 0,
+        heading: 0,
+        speed: 0,
+        speedAccuracy: 0,
+        altitudeAccuracy: 0,
+        headingAccuracy: 0,
+      );
+      // Tạm gán nhãn OSM để hiển thị ngay
+      currentAddress = label;
+    });
+
+    await mapController?.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(target: target, zoom: 15),
+      ),
+    );
+
+    addMarker();
+
+    // (Tuỳ chọn) Chuẩn hoá địa chỉ bằng reverse geocode của bạn
+    await getAddressFromLatLng();
+
+    // Ẩn bàn phím
+    FocusScope.of(context).unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasPosition = _currentPosition != null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Google Maps Integration')),
-      body: Column(
+      body: Stack(
         children: [
-          Expanded(
-            flex: 2,
-            child: !hasPosition
-                ? const Center(child: CircularProgressIndicator())
-                : CurrentMap(
-              onMapCreated: _onMapCreated,
-              initialTarget: LatLng(
-                _currentPosition!.latitude,
-                _currentPosition!.longitude,
+          Column(
+            children: [
+              Expanded(
+                flex: 2,
+                child: !hasPosition
+                    ? const Center(child: CircularProgressIndicator())
+                    : CurrentMap(
+                  onMapCreated: _onMapCreated,
+                  initialTarget: LatLng(
+                    _currentPosition!.latitude,
+                    _currentPosition!.longitude,
+                  ),
+                  markers: markers,
+                ),
               ),
-              markers: markers,
-            ),
+              Expanded(
+                child: LocationInfoCard(
+                  title: 'CURRENT LOCATION',
+                  address: currentAddress,
+                  onRefresh: getCurrentLocation,
+                ),
+              ),
+            ],
           ),
-          Expanded(
-            child: LocationInfoCard(
-              title: 'CURRENT LOCATION',
-              address: currentAddress,
-              onRefresh: getCurrentLocation,
+
+          // Ô tìm kiếm OSM nổi phía trên bản đồ
+          Positioned(
+            top: 12,
+            left: 12,
+            right: 12,
+            child: OsmSearchBar(
+              controller: _osmCtrl,
+              onPick: _onOsmPicked,
             ),
           ),
         ],
