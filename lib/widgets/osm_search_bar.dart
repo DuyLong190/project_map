@@ -20,12 +20,31 @@ class OsmSearchBar extends StatefulWidget {
 class _OsmSearchBarState extends State<OsmSearchBar> {
   final FocusNode _focusNode = FocusNode();
   final SuggestionsController<Map<String, dynamic>> _suggCtrl = SuggestionsController();
+  
+  // Khi người dùng đang gõ dấu (ví dụ gõ 'f' để tạo 'à'), tạm thời
+  // giữ việc gọi API cho đến khi họ nhấn ký tự commit (theo yêu cầu là '_').
+  bool _holdUntilCommitChar = false;
 
   Future<List<Map<String, dynamic>>> _search(String q) async {
-    // Tránh làm mới gợi ý khi đang nhập dấu (IME composing) để không mất ký tự
+    // 1) Nếu đang IME composing (ví dụ vừa gõ 'f' để tạo dấu), không tìm ngay
     final isComposing = widget.controller.value.composing.isValid;
-    if (isComposing) return [];
-    final query = q.trim();
+    if (isComposing) {
+      _holdUntilCommitChar = true;
+      return [];
+    }
+
+    // 2) Nếu trước đó có hold, chỉ tiếp tục khi người dùng gõ ký tự commit '_'
+    String working = q;
+    if (_holdUntilCommitChar) {
+      if (working.isEmpty || !working.endsWith('_')) {
+        return [];
+      }
+      // Bỏ '_' ra khỏi truy vấn, và bỏ hold
+      working = working.substring(0, working.length - 1);
+      _holdUntilCommitChar = false;
+    }
+
+    final query = working.trim();
     if (query.isEmpty) return [];
     final uri = Uri.parse(
         'https://nominatim.openstreetmap.org/search'
@@ -86,6 +105,8 @@ class _OsmSearchBarState extends State<OsmSearchBar> {
             border: InputBorder.none,
             contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           ),
+          // Người dùng yêu cầu dùng '_' để commit chuỗi sau khi gõ dấu.
+          // Không cập nhật gợi ý trong onChanged; logic nằm ở _search qua composing/hold.
         ),
 
         itemBuilder: (context, item) => ListTile(
