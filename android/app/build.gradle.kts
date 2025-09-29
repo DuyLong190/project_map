@@ -28,6 +28,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        
+        // Places API configuration
+        manifestPlaceholders["MAPS_API_KEY"] = System.getenv("MAPS_API_KEY") ?: project.findProperty("MAPS_API_KEY") ?: ""
     }
 
     buildTypes {
@@ -35,8 +38,19 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
+}
+
+dependencies {
+    // Google Places API
+    implementation("com.google.android.libraries.places:places:3.4.0")
+    // Activity Result API
+    implementation("androidx.activity:activity-ktx:1.8.2")
+    // AppCompat for Activity
+    implementation("androidx.appcompat:appcompat:1.6.1")
 }
 
 flutter {
