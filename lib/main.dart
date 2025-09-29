@@ -19,6 +19,7 @@ class _MyAppState extends State<MyApp> {
   String currentAddress = "";
   GoogleMapController? mapController;
   Set<Marker> markers = {};
+  LatLng? _selectedLocation;
 
   @override
   void initState() {
@@ -109,6 +110,37 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  void _handleTap(LatLng tappedPoint) async {
+    setState(() {
+      _selectedLocation = tappedPoint;
+      markers.add(
+        Marker(
+          markerId: const MarkerId('selected_location'),
+          position: tappedPoint,
+          infoWindow: const InfoWindow(title: 'Selected Location'),
+        ),
+      );
+    });
+
+    // Lấy địa chỉ của điểm được chọn
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        tappedPoint.latitude,
+        tappedPoint.longitude,
+      );
+
+      if (placemarks.isNotEmpty) {
+        Placemark place = placemarks[0];
+        setState(() {
+          currentAddress =
+              "${place.street}, ${place.subLocality}, ${place.locality}, ${place.administrativeArea}, ${place.country}";
+        });
+      }
+    } catch (e) {
+      print(e);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -132,6 +164,7 @@ class _MyAppState extends State<MyApp> {
                       markers: markers,
                       myLocationEnabled: true,
                       myLocationButtonEnabled: true,
+                      onTap: _handleTap, // Thêm dòng này
                     ),
             ),
             Expanded(
