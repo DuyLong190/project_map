@@ -6,10 +6,12 @@ class DirectionControlsWidget extends StatelessWidget {
   final VoidCallback onSetEnd;
   final VoidCallback onGetRoute;
   final VoidCallback onClearRoute;
+  final VoidCallback? onSaveRoute;
   final bool canGetRoute;
   final bool isGettingRoute;
   final bool hasStartLocation;
   final bool hasEndLocation;
+  final bool canSaveRoute;
 
   const DirectionControlsWidget({
     super.key,
@@ -17,10 +19,12 @@ class DirectionControlsWidget extends StatelessWidget {
     required this.onSetEnd,
     required this.onGetRoute,
     required this.onClearRoute,
+    this.onSaveRoute,
     required this.canGetRoute,
     required this.isGettingRoute,
     required this.hasStartLocation,
     required this.hasEndLocation,
+    required this.canSaveRoute,
   });
 
   @override
@@ -109,6 +113,24 @@ class DirectionControlsWidget extends StatelessWidget {
               ),
             ],
           ),
+
+          // Save Route button
+          if (canSaveRoute && onSaveRoute != null) ...[
+            const SizedBox(height: AppConstants.smallPadding),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: onSaveRoute,
+                icon: const Icon(Icons.bookmark_add, color: Colors.white),
+                label: const Text(AppConstants.saveRouteButton),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppConstants.secondaryColor,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(0, AppConstants.buttonHeight),
+                ),
+              ),
+            ),
+          ],
 
           // Status indicators
           if (hasStartLocation || hasEndLocation) ...[

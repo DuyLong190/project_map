@@ -3,15 +3,18 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../models/location_model.dart';
 import '../models/route_model.dart';
 import '../models/search_result_model.dart';
+import '../models/saved_route_model.dart';
 import '../services/location_service.dart';
 import '../services/route_service.dart';
 import '../services/search_service.dart';
+import '../services/storage_service.dart';
 
 class MapProvider with ChangeNotifier {
   // Services
   final LocationService _locationService = LocationService();
   final RouteService _routeService = RouteService();
   final SearchService _searchService = SearchService();
+  final StorageService _storageService = StorageService();
 
   // State variables
   LocationModel? _currentLocation;
@@ -21,9 +24,10 @@ class MapProvider with ChangeNotifier {
 
   List<SearchResultModel> _searchResults = [];
   RouteModel _currentRoute = RouteModel.empty();
+  List<SavedRouteModel> _savedRoutes = [];
 
-  Set<Marker> _markers = {};
-  Set<Polyline> _polylines = {};
+  final Set<Marker> _markers = {};
+  final Set<Polyline> _polylines = {};
 
   GoogleMapController? _mapController;
 
@@ -31,6 +35,7 @@ class MapProvider with ChangeNotifier {
   bool _isLoadingCurrentLocation = false;
   bool _isSearching = false;
   bool _isGettingRoute = false;
+  bool _isLoadingSavedRoutes = false;
 
   // Getters
   LocationModel? get currentLocation => _currentLocation;
@@ -40,6 +45,7 @@ class MapProvider with ChangeNotifier {
 
   List<SearchResultModel> get searchResults => _searchResults;
   RouteModel get currentRoute => _currentRoute;
+  List<SavedRouteModel> get savedRoutes => _savedRoutes;
 
   Set<Marker> get markers => _markers;
   Set<Polyline> get polylines => _polylines;
@@ -49,13 +55,17 @@ class MapProvider with ChangeNotifier {
   bool get isLoadingCurrentLocation => _isLoadingCurrentLocation;
   bool get isSearching => _isSearching;
   bool get isGettingRoute => _isGettingRoute;
+  bool get isLoadingSavedRoutes => _isLoadingSavedRoutes;
 
   bool get hasRoute => !_currentRoute.isEmpty;
   bool get canGetRoute => _startLocation != null && _endLocation != null;
+  bool get canSaveRoute =>
+      hasRoute && _startLocation != null && _endLocation != null;
 
   // Initialize
   Future<void> initialize() async {
     await getCurrentLocation();
+    await loadSavedRoutes();
   }
 
   // Map controller
@@ -291,5 +301,99 @@ class MapProvider with ChangeNotifier {
     _selectedLocation = null;
     _updateMarkers();
     notifyListeners();
+  }
+
+  // Saved Routes functionality
+  Future<void> loadSavedRoutes() async {
+    _isLoadingSavedRoutes = true;
+    notifyListeners();
+
+    try {
+      _savedRoutes = await _storageService.getSavedRoutes();
+    } catch (e) {
+      print('Error loading saved routes: $e');
+    } finally {
+      _isLoadingSavedRoutes = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> saveCurrentRoute(String name, String description) async {
+    if (!canSaveRoute) return false;
+
+    try {
+      final savedRoute = SavedRouteModel.create(
+        name: name,
+        description: description,
+        startLocation: _startLocation!,
+        endLocation: _endLocation!,
+        route: _currentRoute,
+      );
+
+      final success = await _storageService.saveRoute(savedRoute);
+      if (success) {
+        await loadSavedRoutes(); // Reload to get updated list
+      }
+      return success;
+    } catch (e) {
+      print('Error saving route: $e');
+      return false;
+    }
+  }
+
+  Future<void> loadSavedRoute(SavedRouteModel savedRoute) async {
+    try {
+      // Update route and mark as accessed
+      final updatedRoute = savedRoute.markAsAccessed();
+      await _storageService.updateRoute(updatedRoute);
+
+      // Load the route into current state
+      _startLocation = savedRoute.startLocation;
+      _endLocation = savedRoute.endLocation;
+      _currentRoute = savedRoute.route;
+
+      _updateMarkers();
+      _updatePolylines();
+      _fitCameraToRoute();
+
+      // Update saved routes list
+      await loadSavedRoutes();
+
+      notifyListeners();
+    } catch (e) {
+      print('Error loading saved route: $e');
+    }
+  }
+
+  Future<bool> deleteSavedRoute(String routeId) async {
+    try {
+      final success = await _storageService.deleteRoute(routeId);
+      if (success) {
+        await loadSavedRoutes(); // Reload to get updated list
+      }
+      return success;
+    } catch (e) {
+      print('Error deleting route: $e');
+      return false;
+    }
+  }
+
+  Future<void> toggleRouteFavorite(String routeId) async {
+    try {
+      final route = _savedRoutes.firstWhere((r) => r.id == routeId);
+      final updatedRoute = route.toggleFavorite();
+      await _storageService.updateRoute(updatedRoute);
+      await loadSavedRoutes(); // Reload to get updated list
+    } catch (e) {
+      print('Error toggling route favorite: $e');
+    }
+  }
+
+  List<SavedRouteModel> getFavoriteRoutes() {
+    return _savedRoutes.where((route) => route.isFavorite).toList();
+  }
+
+  Future<List<SavedRouteModel>> searchSavedRoutes(String query) async {
+    return await _storageService.searchRoutes(query);
   }
 }

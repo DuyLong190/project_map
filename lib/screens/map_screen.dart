@@ -6,6 +6,8 @@ import '../widgets/search_bar_widget.dart';
 import '../widgets/search_results_widget.dart';
 import '../widgets/direction_controls_widget.dart';
 import '../widgets/location_info_widget.dart';
+import '../widgets/save_route_dialog.dart';
+import '../widgets/saved_routes_widget.dart';
 import '../constants/app_constants.dart';
 
 class MapScreen extends StatefulWidget {
@@ -39,6 +41,13 @@ class _MapScreenState extends State<MapScreen> {
         title: const Text(AppConstants.appName),
         backgroundColor: AppConstants.primaryColor,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            onPressed: () => _showSavedRoutes(context),
+            icon: const Icon(Icons.bookmark),
+            tooltip: AppConstants.savedRoutesTitle,
+          ),
+        ],
       ),
       body: Consumer<MapProvider>(
         builder: (context, mapProvider, child) {
@@ -64,10 +73,14 @@ class _MapScreenState extends State<MapScreen> {
                   onSetEnd: mapProvider.setEndLocation,
                   onGetRoute: mapProvider.getRoute,
                   onClearRoute: mapProvider.clearRoute,
+                  onSaveRoute: mapProvider.canSaveRoute
+                      ? () => _showSaveRouteDialog(context, mapProvider)
+                      : null,
                   canGetRoute: mapProvider.canGetRoute,
                   isGettingRoute: mapProvider.isGettingRoute,
                   hasStartLocation: mapProvider.startLocation != null,
                   hasEndLocation: mapProvider.endLocation != null,
+                  canSaveRoute: mapProvider.canSaveRoute,
                 ),
             ],
           );
@@ -122,5 +135,114 @@ class _MapScreenState extends State<MapScreen> {
     // Get address for tapped location
     // We'll add this method to MapProvider to handle address lookup
     mapProvider.selectLocationFromTap(coordinates);
+  }
+
+  void _showSaveRouteDialog(BuildContext context, MapProvider mapProvider) {
+    showDialog(
+      context: context,
+      builder: (context) => SaveRouteDialog(
+        onSave: (name, description) async {
+          final success = await mapProvider.saveCurrentRoute(name, description);
+          if (success && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(AppConstants.routeSavedSuccess),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  void _showSavedRoutes(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.3,
+        maxChildSize: 0.95,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppConstants.defaultPadding,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      AppConstants.savedRoutesTitle,
+                      style: AppConstants.titleStyle.copyWith(fontSize: 20),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Saved routes list
+              Expanded(
+                child: Consumer<MapProvider>(
+                  builder: (context, mapProvider, child) {
+                    return SavedRoutesWidget(
+                      routes: mapProvider.savedRoutes,
+                      onLoadRoute: (route) {
+                        mapProvider.loadSavedRoute(route);
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(AppConstants.routeLoadedSuccess),
+                            backgroundColor: Colors.blue,
+                          ),
+                        );
+                      },
+                      onDeleteRoute: (routeId) async {
+                        final success = await mapProvider.deleteSavedRoute(
+                          routeId,
+                        );
+                        if (success && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(AppConstants.routeDeletedSuccess),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                        }
+                      },
+                      onToggleFavorite: (routeId) {
+                        mapProvider.toggleRouteFavorite(routeId);
+                      },
+                      isLoading: mapProvider.isLoadingSavedRoutes,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

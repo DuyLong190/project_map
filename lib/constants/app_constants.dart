@@ -91,10 +91,30 @@ class AppConstants {
   static const String setEndButton = 'Điểm đến';
   static const String findRouteButton = 'Tìm đường';
   static const String clearRouteButton = 'Xóa đường';
+  static const String saveRouteButton = 'Lưu vết';
+  static const String loadRouteButton = 'Tải vết';
+  static const String deleteRouteButton = 'Xóa';
+  static const String favoriteRouteButton = 'Yêu thích';
 
   // Section Titles
   static const String currentLocationTitle = 'VỊ TRÍ HIỆN TẠI';
   static const String selectedLocationTitle = 'VỊ TRÍ ĐƯỢC CHỌN';
   static const String searchResultsTitle = 'KẾT QUẢ TÌM KIẾM';
   static const String directionTitle = 'CHỈ ĐƯỜNG';
+  static const String savedRoutesTitle = 'VẾT ĐÃ LƯU';
+  static const String favoriteRoutesTitle = 'VẾT YÊU THÍCH';
+
+  // Save Route Dialog
+  static const String saveRouteTitle = 'Lưu vết đường đi';
+  static const String routeNameHint = 'Tên vết (ví dụ: Đi làm hàng ngày)';
+  static const String routeDescriptionHint = 'Mô tả (tùy chọn)';
+  static const String saveButton = 'Lưu';
+  static const String cancelButton = 'Hủy';
+
+  // Messages
+  static const String routeSavedSuccess = 'Đã lưu vết thành công!';
+  static const String routeDeletedSuccess = 'Đã xóa vết!';
+  static const String routeLoadedSuccess = 'Đã tải vết!';
+  static const String noSavedRoutes = 'Chưa có vết nào được lưu';
+  static const String confirmDeleteRoute = 'Bạn có chắc muốn xóa vết này?';
 }
